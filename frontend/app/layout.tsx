@@ -21,40 +21,40 @@ export default function RootLayout({
         {/* Glass Navigation */}
         <nav className="bg-white/80 backdrop-blur-xl border-b border-white/20 shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              {/* Logo */}
+            <div className="flex items-center h-16 gap-2 sm:gap-4">
+              {/* Logo - fixed width */}
               <Link
                 href="/"
-                className="flex-shrink-0 text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors"
+                className="flex-shrink-0 text-xs sm:text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors"
               >
-                Swiss Taekwondo
+                Swiss TKD
               </Link>
 
-              {/* Navigation Links - Scrollable on mobile */}
-              <div className="flex-1 flex justify-center">
-                <div className="flex space-x-2 sm:space-x-6 overflow-x-auto scrollbar-hide">
+              {/* Navigation Links - Scrollable container */}
+              <div className="flex-1 min-w-0 overflow-x-auto scrollbar-hide">
+                <div className="flex flex-nowrap gap-1 sm:gap-4 justify-center">
                   <Link
                     href="/rankings"
-                    className="whitespace-nowrap inline-flex items-center px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                    className="flex-shrink-0 whitespace-nowrap inline-flex items-center px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
                   >
                     Performances
                   </Link>
                   <Link
-                    href="/selections"
-                    className="whitespace-nowrap inline-flex items-center px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
-                  >
-                    Selections
-                  </Link>
-                  <Link
                     href="/competitions"
-                    className="whitespace-nowrap inline-flex items-center px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                    className="flex-shrink-0 whitespace-nowrap inline-flex items-center px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
                   >
                     Competitions
+                  </Link>
+                  <Link
+                    href="/selections"
+                    className="flex-shrink-0 whitespace-nowrap inline-flex items-center px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    Selections
                   </Link>
                 </div>
               </div>
 
-              {/* Login */}
+              {/* Login - fixed width */}
               <Link
                 href="/auth/login"
                 className="flex-shrink-0 text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
