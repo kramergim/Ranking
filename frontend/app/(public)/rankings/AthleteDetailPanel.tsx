@@ -30,6 +30,8 @@ interface AthleteDetail {
   total_points: number;
   current_year_points: number;
   last_year_pts: number;
+  carry_over_points: number;
+  hub_bonus_points: number;
   ranking_position: number;
   results: AthleteResult[];
 }
@@ -114,6 +116,8 @@ export default function AthleteDetailPanel({
         total_points: firstRow.total_points,
         current_year_points: firstRow.current_year_points,
         last_year_pts: firstRow.last_year_pts,
+        carry_over_points: firstRow.carry_over_points || 0,
+        hub_bonus_points: firstRow.hub_bonus_points || 0,
         ranking_position: firstRow.ranking_position,
         results,
       });
@@ -214,7 +218,7 @@ export default function AthleteDetailPanel({
                     </div>
                   </div>
 
-                  {/* Points Breakdown */}
+                  {/* Points Summary */}
                   <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-white/30">
                     <div className="text-center">
                       <p className="text-white/80 text-sm mb-1">Current Year</p>
@@ -225,6 +229,41 @@ export default function AthleteDetailPanel({
                       <p className="text-3xl font-bold">{Math.round(athleteDetail.last_year_pts)}</p>
                     </div>
                   </div>
+
+                  {/* Points Breakdown - Calculation */}
+                  {(athleteDetail.carry_over_points > 0 || athleteDetail.hub_bonus_points > 0) && (
+                    <div className="mt-4 pt-4 border-t border-white/20">
+                      <p className="text-white/50 text-xs uppercase tracking-wider mb-2 text-center">Calculation</p>
+                      <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+                        <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+                          <span className="text-white/60">Current</span>
+                          <span className="font-semibold text-white">{Math.round(athleteDetail.current_year_points)}</span>
+                        </span>
+                        {athleteDetail.carry_over_points > 0 && (
+                          <>
+                            <span className="text-white/40">+</span>
+                            <span className="inline-flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+                              <span className="text-white/60">Carry Over</span>
+                              <span className="font-semibold text-white">{Math.round(athleteDetail.carry_over_points)}</span>
+                            </span>
+                          </>
+                        )}
+                        {athleteDetail.hub_bonus_points > 0 && (
+                          <>
+                            <span className="text-white/40">+</span>
+                            <span className="inline-flex items-center gap-1 bg-yellow-500/20 px-2 py-1 rounded-full">
+                              <span className="text-yellow-200/80">HUB</span>
+                              <span className="font-semibold text-yellow-100">{Math.round(athleteDetail.hub_bonus_points)}</span>
+                            </span>
+                          </>
+                        )}
+                        <span className="text-white/40">=</span>
+                        <span className="inline-flex items-center gap-1 bg-white/20 px-2 py-1 rounded-full">
+                          <span className="font-bold text-white">{Math.round(athleteDetail.total_points)}</span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
