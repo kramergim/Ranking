@@ -54,13 +54,6 @@ export default function RootLayout({
                 </div>
               </div>
 
-              {/* Login - fixed width */}
-              <Link
-                href="/auth/login"
-                className="flex-shrink-0 text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
-              >
-                Login
-              </Link>
             </div>
           </div>
         </nav>
