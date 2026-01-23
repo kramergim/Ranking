@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Check, MessageCircle, Facebook, Twitter, Link2, Loader2, Instagram, Share2 } from 'lucide-react';
-import html2canvas from 'html2canvas';
 
 interface ShareButtonsPanelProps {
   athleteName: string;
@@ -32,7 +31,6 @@ export default function ShareButtonsPanel({
   const [imageReady, setImageReady] = useState(false);
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [mobileShareSupported, setMobileShareSupported] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
 
   const getShareUrl = () => {
     if (typeof window !== 'undefined') {
@@ -42,46 +40,171 @@ export default function ShareButtonsPanel({
     return '';
   };
 
-  // Pre-generate image when component mounts
+  // Generate image using Canvas API (more reliable on mobile)
   useEffect(() => {
     const generateImage = async () => {
-      // Wait for card to render
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait a bit for component to mount
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-      if (cardRef.current) {
-        try {
-          const canvas = await html2canvas(cardRef.current, {
-            backgroundColor: '#dc2626',
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            logging: false,
-          });
-
-          canvas.toBlob((blob) => {
-            if (blob) {
-              setImageBlob(blob);
-              setImageReady(true);
-              // Check if mobile file sharing is supported
-              try {
-                const testFile = new File([blob], 'test.png', { type: 'image/png' });
-                const canShare = navigator.canShare && navigator.canShare({ files: [testFile] });
-                const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                setMobileShareSupported(isMobileDevice && canShare);
-              } catch {
-                setMobileShareSupported(false);
-              }
-            }
-          }, 'image/png');
-        } catch (err) {
-          console.error('Failed to generate image:', err);
-          setImageReady(true); // Allow sharing even if image fails
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          console.error('Could not get canvas context');
+          setImageReady(true);
+          return;
         }
+
+        // Set canvas size (Instagram story size)
+        const width = 400;
+        const height = 400;
+        canvas.width = width * 2; // 2x for retina
+        canvas.height = height * 2;
+        ctx.scale(2, 2);
+
+        // Background gradient
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, '#dc2626');
+        gradient.addColorStop(0.5, '#b91c1c');
+        gradient.addColorStop(1, '#991b1b');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw photo or initial
+        const centerX = width / 2;
+        let currentY = 50;
+
+        if (photoUrl) {
+          try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            await new Promise((resolve, reject) => {
+              img.onload = resolve;
+              img.onerror = reject;
+              img.src = photoUrl;
+            });
+            // Draw circular photo
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(centerX, currentY + 48, 48, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.clip();
+            ctx.drawImage(img, centerX - 48, currentY, 96, 96);
+            ctx.restore();
+            // Draw border
+            ctx.beginPath();
+            ctx.arc(centerX, currentY + 48, 50, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+          } catch {
+            // Photo failed, draw initial
+            ctx.beginPath();
+            ctx.arc(centerX, currentY + 48, 48, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 36px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(athleteName.charAt(0), centerX, currentY + 60);
+          }
+        } else {
+          // Draw initial circle
+          ctx.beginPath();
+          ctx.arc(centerX, currentY + 48, 48, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.2)';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+          ctx.lineWidth = 4;
+          ctx.stroke();
+          ctx.fillStyle = 'white';
+          ctx.font = 'bold 36px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText(athleteName.charAt(0), centerX, currentY + 60);
+        }
+
+        currentY += 115;
+
+        // Name
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(athleteName, centerX, currentY);
+        currentY += 20;
+
+        // Club
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.font = '14px Arial';
+        ctx.fillText(club || 'Swiss Taekwondo', centerX, currentY);
+        currentY += 30;
+
+        // Points box
+        const boxWidth = 160;
+        const boxHeight = 90;
+        const boxX = centerX - boxWidth / 2;
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.beginPath();
+        ctx.roundRect(boxX, currentY, boxWidth, boxHeight, 16);
+        ctx.fill();
+
+        // Points number
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 48px Arial';
+        ctx.fillText(Math.round(totalPoints).toString(), centerX, currentY + 55);
+
+        // Points label
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.font = '12px Arial';
+        ctx.fillText('TOTAL POINTS', centerX, currentY + 75);
+        currentY += boxHeight + 20;
+
+        // Rank badge
+        const badgeText = `#${rank} in ${ageCategory}`;
+        ctx.font = 'bold 16px Arial';
+        const badgeWidth = ctx.measureText(badgeText).width + 40;
+        ctx.fillStyle = '#eab308';
+        ctx.beginPath();
+        ctx.roundRect(centerX - badgeWidth / 2, currentY, badgeWidth, 36, 18);
+        ctx.fill();
+        ctx.fillStyle = '#713f12';
+        ctx.fillText(badgeText, centerX, currentY + 24);
+
+        // Branding at bottom
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.font = '14px Arial';
+        ctx.fillText('Swiss Taekwondo Federation', centerX, height - 20);
+
+        // Convert to blob
+        canvas.toBlob((blob) => {
+          if (blob) {
+            setImageBlob(blob);
+            setImageReady(true);
+            // Check if mobile file sharing is supported
+            try {
+              const testFile = new File([blob], 'test.png', { type: 'image/png' });
+              const canShare = navigator.canShare && navigator.canShare({ files: [testFile] });
+              const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+              setMobileShareSupported(isMobileDevice && canShare);
+            } catch {
+              setMobileShareSupported(false);
+            }
+          } else {
+            console.error('Failed to create blob from canvas');
+            setImageReady(true);
+          }
+        }, 'image/png');
+
+      } catch (err) {
+        console.error('Failed to generate image:', err);
+        setImageReady(true);
       }
     };
 
     generateImage();
-  }, [athleteName, totalPoints, rank]);
+  }, [athleteName, totalPoints, rank, ageCategory, club, photoUrl]);
 
   const downloadImage = () => {
     if (!imageBlob) return;
@@ -234,112 +357,6 @@ export default function ShareButtonsPanel({
 
   return (
     <>
-      {/* Hidden card for image generation */}
-      <div style={{ position: 'fixed', left: '-9999px', top: '-9999px' }}>
-        <div
-          ref={cardRef}
-          style={{ width: '400px', height: '400px', position: 'relative', overflow: 'hidden' }}
-        >
-          {/* Gradient Background */}
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(to bottom right, #dc2626, #b91c1c, #991b1b)'
-          }}></div>
-
-          {/* Pattern overlay */}
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            opacity: 0.1,
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          }}></div>
-
-          {/* Content */}
-          <div style={{
-            position: 'relative',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '32px',
-            color: 'white',
-            textAlign: 'center'
-          }}>
-            {/* Photo */}
-            {photoUrl ? (
-              <img
-                src={photoUrl}
-                alt={athleteName}
-                style={{
-                  width: '96px',
-                  height: '96px',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '4px solid rgba(255,255,255,0.3)',
-                  marginBottom: '16px'
-                }}
-                crossOrigin="anonymous"
-              />
-            ) : (
-              <div style={{
-                width: '96px',
-                height: '96px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(255,255,255,0.2)',
-                border: '4px solid rgba(255,255,255,0.3)',
-                marginBottom: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '36px',
-                fontWeight: 'bold'
-              }}>
-                {athleteName.charAt(0)}
-              </div>
-            )}
-
-            {/* Name */}
-            <h2 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '4px' }}>{athleteName}</h2>
-            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', marginBottom: '20px' }}>{club || 'Swiss Taekwondo'}</p>
-
-            {/* Points - Big */}
-            <div style={{
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              borderRadius: '16px',
-              padding: '20px 40px',
-              marginBottom: '20px',
-              border: '1px solid rgba(255,255,255,0.3)'
-            }}>
-              <p style={{ fontSize: '56px', fontWeight: '900', marginBottom: '4px', lineHeight: 1 }}>{Math.round(totalPoints)}</p>
-              <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Total Points</p>
-            </div>
-
-            {/* Rank Badge */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              backgroundColor: '#eab308',
-              color: '#713f12',
-              padding: '10px 20px',
-              borderRadius: '9999px',
-              fontWeight: 'bold',
-              fontSize: '16px'
-            }}>
-              <span>#{rank}</span>
-              <span style={{ color: '#854d0e' }}>in {ageCategory}</span>
-            </div>
-
-            {/* Branding */}
-            <div style={{ position: 'absolute', bottom: '20px', left: 0, right: 0, textAlign: 'center' }}>
-              <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '500' }}>Swiss Taekwondo Federation</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Share buttons */}
       <div className="mt-6 pt-6 border-t border-white/20">
         <p className="text-white/60 text-xs uppercase tracking-wider mb-3 text-center">Share this profile</p>
