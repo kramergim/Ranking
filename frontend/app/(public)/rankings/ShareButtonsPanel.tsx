@@ -127,13 +127,56 @@ export default function ShareButtonsPanel({
     setSharing(null);
   };
 
+  // Check if on mobile
+  const isMobile = () => {
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
+
   const handleShare = async (platform: 'whatsapp' | 'instagram' | 'facebook' | 'twitter' | 'copy') => {
     setSharing(platform);
     const url = getShareUrl();
+    const mobile = isMobile();
 
     try {
-      // Download image first
-      if (imageBlob) {
+      // On mobile, try native share with image for Instagram (and other platforms)
+      if (mobile && platform === 'instagram' && imageBlob) {
+        const file = new File(
+          [imageBlob],
+          `${athleteName.replace(/\s+/g, '_')}_swiss_taekwondo.png`,
+          { type: 'image/png' }
+        );
+
+        // Try native share with file
+        if (navigator.share) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: `${athleteName} - Swiss Taekwondo`,
+            });
+            setSharing(null);
+            return;
+          } catch (err) {
+            if ((err as Error).name === 'AbortError') {
+              setSharing(null);
+              return;
+            }
+            // Native share failed, download image as fallback
+            console.log('Native share failed:', err);
+            downloadImage();
+            setSharing(null);
+            return;
+          }
+        } else {
+          // No native share, just download
+          downloadImage();
+          setSharing(null);
+          return;
+        }
+      }
+
+      // Desktop behavior or non-Instagram on mobile
+      if (imageBlob && platform !== 'copy') {
         downloadImage();
         await new Promise(resolve => setTimeout(resolve, 300));
       }
@@ -142,10 +185,12 @@ export default function ShareButtonsPanel({
 
       switch (platform) {
         case 'whatsapp':
-          shareUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(`${athleteName} - Swiss Taekwondo Ranking\n${url}`)}`;
+          shareUrl = mobile
+            ? `https://api.whatsapp.com/send?text=${encodeURIComponent(`${athleteName} - Swiss Taekwondo Ranking\n${url}`)}`
+            : `https://web.whatsapp.com/send?text=${encodeURIComponent(`${athleteName} - Swiss Taekwondo Ranking\n${url}`)}`;
           break;
         case 'instagram':
-          // Instagram doesn't support web sharing - image already downloaded
+          // Desktop: image already downloaded, no web share URL
           break;
         case 'facebook':
           shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
@@ -155,6 +200,9 @@ export default function ShareButtonsPanel({
           break;
         case 'copy':
           await navigator.clipboard.writeText(url);
+          if (imageBlob) {
+            downloadImage();
+          }
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
           break;
