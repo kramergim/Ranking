@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Check, MessageCircle, Facebook, Twitter, Link2, Loader2, Instagram } from 'lucide-react';
+import { Check, MessageCircle, Facebook, Twitter, Link2, Loader2, Instagram, Share2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 interface ShareButtonsPanelProps {
@@ -31,6 +31,7 @@ export default function ShareButtonsPanel({
   const [sharing, setSharing] = useState<string | null>(null);
   const [imageReady, setImageReady] = useState(false);
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
+  const [mobileShareSupported, setMobileShareSupported] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const getShareUrl = () => {
@@ -61,6 +62,15 @@ export default function ShareButtonsPanel({
             if (blob) {
               setImageBlob(blob);
               setImageReady(true);
+              // Check if mobile file sharing is supported
+              try {
+                const testFile = new File([blob], 'test.png', { type: 'image/png' });
+                const canShare = navigator.canShare && navigator.canShare({ files: [testFile] });
+                const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                setMobileShareSupported(isMobileDevice && canShare);
+              } catch {
+                setMobileShareSupported(false);
+              }
             }
           }, 'image/png');
         } catch (err) {
@@ -86,78 +96,43 @@ export default function ShareButtonsPanel({
     URL.revokeObjectURL(imageUrl);
   };
 
-  // Detect if on mobile device
-  const isMobile = () => {
-    if (typeof window === 'undefined') return false;
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const handleMobileShare = async () => {
+    setSharing('mobile');
+
+    if (!imageBlob) {
+      setSharing(null);
+      return;
+    }
+
+    const url = getShareUrl();
+    const file = new File(
+      [imageBlob],
+      `${athleteName.replace(/\s+/g, '_')}_swiss_taekwondo.png`,
+      { type: 'image/png' }
+    );
+
+    try {
+      await navigator.share({
+        files: [file],
+        title: `${athleteName} - Swiss Taekwondo`,
+        text: url,
+      });
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        // Share failed - download image as fallback
+        downloadImage();
+      }
+    }
+
+    setSharing(null);
   };
 
   const handleShare = async (platform: 'whatsapp' | 'instagram' | 'facebook' | 'twitter' | 'copy') => {
     setSharing(platform);
     const url = getShareUrl();
-    const mobile = isMobile();
 
     try {
-      // On mobile, use native Web Share API
-      if (mobile && platform !== 'copy') {
-        // Create file from blob if available
-        const file = imageBlob
-          ? new File([imageBlob], `${athleteName.replace(/\s+/g, '_')}_swiss_taekwondo.png`, { type: 'image/png' })
-          : null;
-
-        // Try sharing with file first
-        if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: `${athleteName} - Swiss Taekwondo`,
-              text: url,
-            });
-            setSharing(null);
-            return;
-          } catch (err) {
-            // User cancelled - just return
-            if ((err as Error).name === 'AbortError') {
-              setSharing(null);
-              return;
-            }
-            // Other error - try without files
-            console.log('Share with files failed, trying without:', err);
-          }
-        }
-
-        // Try sharing without files (just URL and text)
-        if (navigator.share) {
-          try {
-            await navigator.share({
-              title: `${athleteName} - Swiss Taekwondo`,
-              text: `${athleteName} - Swiss Taekwondo Ranking`,
-              url: url,
-            });
-            // Also download image so user can attach it
-            if (imageBlob) {
-              downloadImage();
-            }
-            setSharing(null);
-            return;
-          } catch (err) {
-            if ((err as Error).name === 'AbortError') {
-              setSharing(null);
-              return;
-            }
-            console.log('Share failed:', err);
-          }
-        }
-
-        // Final fallback on mobile - just download image
-        if (imageBlob) {
-          downloadImage();
-        }
-        setSharing(null);
-        return;
-      }
-
-      // Desktop behavior
+      // Download image first
       if (imageBlob) {
         downloadImage();
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -190,10 +165,6 @@ export default function ShareButtonsPanel({
       }
     } catch (err) {
       console.error('Share failed:', err);
-      // Fallback - at least download the image
-      if (imageBlob) {
-        downloadImage();
-      }
     }
 
     setSharing(null);
@@ -311,83 +282,126 @@ export default function ShareButtonsPanel({
       <div className="mt-6 pt-6 border-t border-white/20">
         <p className="text-white/60 text-xs uppercase tracking-wider mb-3 text-center">Share this profile</p>
 
-        <div className="flex items-center justify-center gap-3">
-          {/* WhatsApp */}
-          <button
-            onClick={() => handleShare('whatsapp')}
-            disabled={!imageReady || sharing !== null}
-            className="w-12 h-12 bg-green-500 hover:bg-green-600 disabled:opacity-50 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg disabled:hover:scale-100"
-            title="Share on WhatsApp"
-          >
-            {sharing === 'whatsapp' ? (
-              <Loader2 className="w-5 h-5 text-white animate-spin" />
-            ) : (
-              <MessageCircle className="w-6 h-6 text-white" />
-            )}
-          </button>
+        {/* Mobile: Single share button when file sharing is supported */}
+        {mobileShareSupported ? (
+          <div className="flex flex-col items-center gap-3">
+            <button
+              onClick={handleMobileShare}
+              disabled={!imageReady || sharing !== null}
+              className="w-full max-w-xs py-3 px-6 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:opacity-50 rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg"
+            >
+              {sharing === 'mobile' ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : (
+                <>
+                  <Share2 className="w-5 h-5 text-white" />
+                  <span className="text-white font-semibold">Share Card</span>
+                </>
+              )}
+            </button>
+            {/* Copy link button */}
+            <button
+              onClick={() => handleShare('copy')}
+              disabled={!imageReady || sharing !== null}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
+                copied
+                  ? 'bg-green-500/20 text-green-400'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20'
+              }`}
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span className="text-sm">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Link2 className="w-4 h-4" />
+                  <span className="text-sm">Copy link</span>
+                </>
+              )}
+            </button>
+          </div>
+        ) : (
+          /* Desktop or fallback: Individual platform buttons */
+          <div className="flex items-center justify-center gap-3">
+            {/* WhatsApp */}
+            <button
+              onClick={() => handleShare('whatsapp')}
+              disabled={!imageReady || sharing !== null}
+              className="w-12 h-12 bg-green-500 hover:bg-green-600 disabled:opacity-50 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg disabled:hover:scale-100"
+              title="Share on WhatsApp"
+            >
+              {sharing === 'whatsapp' ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : (
+                <MessageCircle className="w-6 h-6 text-white" />
+              )}
+            </button>
 
-          {/* Instagram */}
-          <button
-            onClick={() => handleShare('instagram')}
-            disabled={!imageReady || sharing !== null}
-            className="w-12 h-12 bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 hover:from-purple-700 hover:via-pink-600 hover:to-orange-500 disabled:opacity-50 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg disabled:hover:scale-100"
-            title="Download for Instagram"
-          >
-            {sharing === 'instagram' ? (
-              <Loader2 className="w-5 h-5 text-white animate-spin" />
-            ) : (
-              <Instagram className="w-6 h-6 text-white" />
-            )}
-          </button>
+            {/* Instagram */}
+            <button
+              onClick={() => handleShare('instagram')}
+              disabled={!imageReady || sharing !== null}
+              className="w-12 h-12 bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 hover:from-purple-700 hover:via-pink-600 hover:to-orange-500 disabled:opacity-50 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg disabled:hover:scale-100"
+              title="Download for Instagram"
+            >
+              {sharing === 'instagram' ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : (
+                <Instagram className="w-6 h-6 text-white" />
+              )}
+            </button>
 
-          {/* Facebook */}
-          <button
-            onClick={() => handleShare('facebook')}
-            disabled={!imageReady || sharing !== null}
-            className="w-12 h-12 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg disabled:hover:scale-100"
-            title="Share on Facebook"
-          >
-            {sharing === 'facebook' ? (
-              <Loader2 className="w-5 h-5 text-white animate-spin" />
-            ) : (
-              <Facebook className="w-6 h-6 text-white" />
-            )}
-          </button>
+            {/* Facebook */}
+            <button
+              onClick={() => handleShare('facebook')}
+              disabled={!imageReady || sharing !== null}
+              className="w-12 h-12 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg disabled:hover:scale-100"
+              title="Share on Facebook"
+            >
+              {sharing === 'facebook' ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : (
+                <Facebook className="w-6 h-6 text-white" />
+              )}
+            </button>
 
-          {/* Twitter/X */}
-          <button
-            onClick={() => handleShare('twitter')}
-            disabled={!imageReady || sharing !== null}
-            className="w-12 h-12 bg-black hover:bg-gray-800 disabled:opacity-50 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg disabled:hover:scale-100"
-            title="Share on X"
-          >
-            {sharing === 'twitter' ? (
-              <Loader2 className="w-5 h-5 text-white animate-spin" />
-            ) : (
-              <Twitter className="w-6 h-6 text-white" />
-            )}
-          </button>
+            {/* Twitter/X */}
+            <button
+              onClick={() => handleShare('twitter')}
+              disabled={!imageReady || sharing !== null}
+              className="w-12 h-12 bg-black hover:bg-gray-800 disabled:opacity-50 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg disabled:hover:scale-100"
+              title="Share on X"
+            >
+              {sharing === 'twitter' ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : (
+                <Twitter className="w-6 h-6 text-white" />
+              )}
+            </button>
 
-          {/* Copy Link */}
-          <button
-            onClick={() => handleShare('copy')}
-            disabled={!imageReady || sharing !== null}
-            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg disabled:hover:scale-100 ${
-              copied
-                ? 'bg-green-500 hover:bg-green-600'
-                : 'bg-white/20 hover:bg-white/30 disabled:opacity-50'
-            }`}
-            title={copied ? 'Copied!' : 'Copy link & download image'}
-          >
-            {sharing === 'copy' ? (
-              <Loader2 className="w-5 h-5 text-white animate-spin" />
-            ) : copied ? (
-              <Check className="w-6 h-6 text-white" />
-            ) : (
-              <Link2 className="w-6 h-6 text-white" />
-            )}
-          </button>
-        </div>
+            {/* Copy Link */}
+            <button
+              onClick={() => handleShare('copy')}
+              disabled={!imageReady || sharing !== null}
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-lg disabled:hover:scale-100 ${
+                copied
+                  ? 'bg-green-500 hover:bg-green-600'
+                  : 'bg-white/20 hover:bg-white/30 disabled:opacity-50'
+              }`}
+              title={copied ? 'Copied!' : 'Copy link & download image'}
+            >
+              {sharing === 'copy' ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : copied ? (
+                <Check className="w-6 h-6 text-white" />
+              ) : (
+                <Link2 className="w-6 h-6 text-white" />
+              )}
+            </button>
+          </div>
+        )}
 
         {!imageReady && (
           <p className="text-white/40 text-xs text-center mt-2">Preparing share card...</p>
