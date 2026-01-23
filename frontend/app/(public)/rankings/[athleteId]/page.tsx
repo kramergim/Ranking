@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, Weight, User, Award, Trophy, Target, Hash } from 'lucide-react';
+import ShareButtons from './ShareButtons';
+import { Metadata } from 'next';
 
 // Revalidate every 60 seconds (ISR)
 export const revalidate = 60;
@@ -9,6 +11,44 @@ export const revalidate = 60;
 interface PageProps {
   params: { athleteId: string };
   searchParams: { snapshot?: string };
+}
+
+// Generate dynamic metadata for social sharing
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('public_athlete_results')
+    .select('athlete_name, total_points, ranking_position, age_category, photo_url')
+    .eq('athlete_id', params.athleteId)
+    .eq('snapshot_id', searchParams.snapshot || '')
+    .limit(1)
+    .single();
+
+  if (!data) {
+    return {
+      title: 'Athlete Profile - Swiss Taekwondo',
+    };
+  }
+
+  const title = `${data.athlete_name} - ${Math.round(data.total_points)} pts | Swiss Taekwondo`;
+  const description = `Rank #${data.ranking_position} in ${data.age_category} with ${Math.round(data.total_points)} points. View detailed tournament results and performance stats.`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'profile',
+      images: data.photo_url ? [{ url: data.photo_url, width: 400, height: 400, alt: data.athlete_name }] : [],
+    },
+    twitter: {
+      card: 'summary',
+      title,
+      description,
+      images: data.photo_url ? [data.photo_url] : [],
+    },
+  };
 }
 
 interface AthleteResult {
@@ -129,10 +169,20 @@ export default async function AthleteDetailPage({ params, searchParams }: PagePr
             {Math.round(athleteDetail.total_points)}
           </p>
 
-          <div className="inline-flex items-center gap-3 bg-white/20 backdrop-blur-md px-6 py-3 rounded-full border border-white/30">
-            <Hash className="w-6 h-6" />
-            <span className="text-2xl md:text-3xl font-bold">Rank {athleteDetail.ranking_position}</span>
-            <span className="text-lg md:text-xl opacity-90">in {athleteDetail.age_category}</span>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="inline-flex items-center gap-3 bg-white/20 backdrop-blur-md px-6 py-3 rounded-full border border-white/30">
+              <Hash className="w-6 h-6" />
+              <span className="text-2xl md:text-3xl font-bold">Rank {athleteDetail.ranking_position}</span>
+              <span className="text-lg md:text-xl opacity-90">in {athleteDetail.age_category}</span>
+            </div>
+
+            {/* Share Button */}
+            <ShareButtons
+              athleteName={athleteDetail.athlete_name}
+              totalPoints={athleteDetail.total_points}
+              rank={athleteDetail.ranking_position}
+              ageCategory={athleteDetail.age_category}
+            />
           </div>
         </div>
       </section>

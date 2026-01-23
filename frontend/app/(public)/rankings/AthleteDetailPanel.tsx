@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Calendar, Trophy, Target, Award, User, Users, Weight, Hash } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
+import ShareButtonsPanel from './ShareButtonsPanel';
 
 interface AthleteResult {
   event_id: string;
@@ -264,6 +265,19 @@ export default function AthleteDetailPanel({
                       </div>
                     </div>
                   )}
+
+                  {/* Share Buttons */}
+                  <ShareButtonsPanel
+                    athleteName={athleteDetail.athlete_name}
+                    totalPoints={athleteDetail.total_points}
+                    rank={athleteDetail.ranking_position}
+                    ageCategory={athleteDetail.age_category}
+                    athleteId={athleteDetail.athlete_id}
+                    snapshotId={snapshotId}
+                    currentYearPoints={athleteDetail.current_year_points}
+                    club={athleteDetail.club}
+                    photoUrl={athleteDetail.photo_url}
+                  />
                 </div>
               </div>
 
