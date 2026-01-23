@@ -98,92 +98,102 @@ export default function ShareButtonsPanel({
     const mobile = isMobile();
 
     try {
-      // On mobile, try to use native Web Share API with the image file
-      if (mobile && imageBlob && platform !== 'copy') {
-        const file = new File(
-          [imageBlob],
-          `${athleteName.replace(/\s+/g, '_')}_swiss_taekwondo.png`,
-          { type: 'image/png' }
-        );
+      // On mobile, use native Web Share API
+      if (mobile && platform !== 'copy') {
+        // Create file from blob if available
+        const file = imageBlob
+          ? new File([imageBlob], `${athleteName.replace(/\s+/g, '_')}_swiss_taekwondo.png`, { type: 'image/png' })
+          : null;
 
-        // Check if we can share files
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        // Try sharing with file first
+        if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
           try {
             await navigator.share({
               files: [file],
-              title: `${athleteName} - Swiss Taekwondo Ranking`,
-              text: `Check out ${athleteName}'s ranking! #SwissTaekwondo`,
-              url: url,
+              title: `${athleteName} - Swiss Taekwondo`,
+              text: url,
             });
             setSharing(null);
             return;
           } catch (err) {
-            // User cancelled or error - fall through to fallback
-            if ((err as Error).name !== 'AbortError') {
-              console.error('Native share failed:', err);
+            // User cancelled - just return
+            if ((err as Error).name === 'AbortError') {
+              setSharing(null);
+              return;
             }
+            // Other error - try without files
+            console.log('Share with files failed, trying without:', err);
           }
         }
+
+        // Try sharing without files (just URL and text)
+        if (navigator.share) {
+          try {
+            await navigator.share({
+              title: `${athleteName} - Swiss Taekwondo`,
+              text: `${athleteName} - Swiss Taekwondo Ranking`,
+              url: url,
+            });
+            // Also download image so user can attach it
+            if (imageBlob) {
+              downloadImage();
+            }
+            setSharing(null);
+            return;
+          } catch (err) {
+            if ((err as Error).name === 'AbortError') {
+              setSharing(null);
+              return;
+            }
+            console.log('Share failed:', err);
+          }
+        }
+
+        // Final fallback on mobile - just download image
+        if (imageBlob) {
+          downloadImage();
+        }
+        setSharing(null);
+        return;
       }
 
-      // Fallback for desktop or if native share not supported
-      // Download image first on desktop
-      if (!mobile && imageBlob) {
+      // Desktop behavior
+      if (imageBlob) {
         downloadImage();
         await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      // Determine share URL based on platform
       let shareUrl = '';
 
       switch (platform) {
         case 'whatsapp':
-          shareUrl = mobile
-            ? `whatsapp://send?text=${encodeURIComponent(`${athleteName} - Swiss Taekwondo Ranking\n${url}`)}`
-            : `https://web.whatsapp.com/send?text=${encodeURIComponent(url)}`;
+          shareUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(`${athleteName} - Swiss Taekwondo Ranking\n${url}`)}`;
           break;
         case 'instagram':
-          // Instagram doesn't support direct URL sharing
-          // Download image for manual sharing
-          if (imageBlob) {
-            downloadImage();
-          }
-          if (mobile) {
-            shareUrl = `instagram://`;
-          }
+          // Instagram doesn't support web sharing - image already downloaded
           break;
         case 'facebook':
-          shareUrl = mobile
-            ? `fb://facewebmodal/f?href=${encodeURIComponent(url)}`
-            : `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+          shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
           break;
         case 'twitter':
-          shareUrl = mobile
-            ? `twitter://post?message=${encodeURIComponent(`${athleteName} - Swiss Taekwondo Ranking ${url}`)}`
-            : `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`${athleteName} - Swiss Taekwondo Ranking`)}`;
+          shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`${athleteName} - Swiss Taekwondo Ranking`)}`;
           break;
         case 'copy':
           await navigator.clipboard.writeText(url);
-          if (imageBlob) {
-            downloadImage();
-          }
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
           break;
       }
 
       if (shareUrl) {
-        if (mobile) {
-          window.location.href = shareUrl;
-        } else {
-          const newWindow = window.open(shareUrl, '_blank', 'noopener,noreferrer');
-          if (!newWindow) {
-            window.location.href = shareUrl;
-          }
-        }
+        window.open(shareUrl, '_blank', 'noopener,noreferrer');
       }
     } catch (err) {
       console.error('Share failed:', err);
+      // Fallback - at least download the image
+      if (imageBlob) {
+        downloadImage();
+      }
     }
 
     setSharing(null);
