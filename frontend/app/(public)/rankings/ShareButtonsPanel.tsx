@@ -139,20 +139,22 @@ export default function ShareButtonsPanel({
     const mobile = isMobile();
 
     try {
-      // On mobile, try native share with image for Instagram (and other platforms)
+      // On mobile Instagram: download image then open Instagram app
       if (mobile && platform === 'instagram' && imageBlob) {
+        // First try native share with file (works on some devices)
         const file = new File(
           [imageBlob],
           `${athleteName.replace(/\s+/g, '_')}_swiss_taekwondo.png`,
           { type: 'image/png' }
         );
 
-        // Try native share with file
-        if (navigator.share) {
+        // Check if file sharing is supported
+        const canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
+
+        if (canShareFiles && navigator.share) {
           try {
             await navigator.share({
               files: [file],
-              title: `${athleteName} - Swiss Taekwondo`,
             });
             setSharing(null);
             return;
@@ -161,18 +163,16 @@ export default function ShareButtonsPanel({
               setSharing(null);
               return;
             }
-            // Native share failed, download image as fallback
-            console.log('Native share failed:', err);
-            downloadImage();
-            setSharing(null);
-            return;
+            // Fall through to download + open approach
           }
-        } else {
-          // No native share, just download
-          downloadImage();
-          setSharing(null);
-          return;
         }
+
+        // Fallback: Download image then open Instagram
+        downloadImage();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        window.location.href = 'instagram://app';
+        setSharing(null);
+        return;
       }
 
       // Desktop behavior or non-Instagram on mobile
