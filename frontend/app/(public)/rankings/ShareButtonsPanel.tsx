@@ -98,62 +98,81 @@ export default function ShareButtonsPanel({
     const mobile = isMobile();
 
     try {
-      // Download image first
-      if (imageBlob) {
-        downloadImage();
+      // On mobile, try to use native Web Share API with the image file
+      if (mobile && imageBlob && platform !== 'copy') {
+        const file = new File(
+          [imageBlob],
+          `${athleteName.replace(/\s+/g, '_')}_swiss_taekwondo.png`,
+          { type: 'image/png' }
+        );
+
+        // Check if we can share files
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: `${athleteName} - Swiss Taekwondo Ranking`,
+              text: `Check out ${athleteName}'s ranking! #SwissTaekwondo`,
+              url: url,
+            });
+            setSharing(null);
+            return;
+          } catch (err) {
+            // User cancelled or error - fall through to fallback
+            if ((err as Error).name !== 'AbortError') {
+              console.error('Native share failed:', err);
+            }
+          }
+        }
       }
 
-      // Small delay to ensure download starts
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Fallback for desktop or if native share not supported
+      // Download image first on desktop
+      if (!mobile && imageBlob) {
+        downloadImage();
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
 
-      // Determine share URL based on platform and device
+      // Determine share URL based on platform
       let shareUrl = '';
 
       switch (platform) {
         case 'whatsapp':
-          if (mobile) {
-            // Mobile: Use whatsapp:// deep link to open app
-            shareUrl = `whatsapp://send?text=${encodeURIComponent(url)}`;
-          } else {
-            // Desktop: Use WhatsApp Web
-            shareUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(url)}`;
-          }
+          shareUrl = mobile
+            ? `whatsapp://send?text=${encodeURIComponent(`${athleteName} - Swiss Taekwondo Ranking\n${url}`)}`
+            : `https://web.whatsapp.com/send?text=${encodeURIComponent(url)}`;
           break;
         case 'instagram':
-          // Instagram doesn't support direct sharing via URL
-          // Just download the image - user will share manually
+          // Instagram doesn't support direct URL sharing
+          // Download image for manual sharing
+          if (imageBlob) {
+            downloadImage();
+          }
           if (mobile) {
-            // Try to open Instagram app
             shareUrl = `instagram://`;
           }
           break;
         case 'facebook':
-          if (mobile) {
-            // Mobile: Use fb:// deep link
-            shareUrl = `fb://facewebmodal/f?href=${encodeURIComponent(url)}`;
-          } else {
-            // Desktop: Use Facebook web sharer
-            shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
-          }
+          shareUrl = mobile
+            ? `fb://facewebmodal/f?href=${encodeURIComponent(url)}`
+            : `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
           break;
         case 'twitter':
-          if (mobile) {
-            // Mobile: Use twitter:// deep link
-            shareUrl = `twitter://post?url=${encodeURIComponent(url)}`;
-          } else {
-            // Desktop: Use Twitter web intent
-            shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}`;
-          }
+          shareUrl = mobile
+            ? `twitter://post?message=${encodeURIComponent(`${athleteName} - Swiss Taekwondo Ranking ${url}`)}`
+            : `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(`${athleteName} - Swiss Taekwondo Ranking`)}`;
           break;
         case 'copy':
           await navigator.clipboard.writeText(url);
+          if (imageBlob) {
+            downloadImage();
+          }
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);
           break;
       }
 
       if (shareUrl) {
-        // For mobile deep links, use window.location to open the app
         if (mobile) {
           window.location.href = shareUrl;
         } else {
