@@ -4,17 +4,8 @@ import { notFound } from 'next/navigation';
 // Revalidate every 60 seconds (ISR)
 export const revalidate = 60;
 
-// Generate static params for all published selections
-export async function generateStaticParams() {
-  const supabase = createClient();
-  const { data: selections } = await supabase
-    .from('public_selections_list')
-    .select('selection_event_id');
-
-  return (selections || []).map((selection) => ({
-    id: selection.selection_event_id,
-  }));
-}
+// Allow dynamic params for selections not pre-generated
+export const dynamicParams = true;
 
 interface PageProps {
   params: {

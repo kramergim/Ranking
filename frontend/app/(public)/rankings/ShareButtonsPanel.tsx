@@ -86,32 +86,19 @@ export default function ShareButtonsPanel({
     URL.revokeObjectURL(imageUrl);
   };
 
+  // Detect if on mobile device
+  const isMobile = () => {
+    if (typeof window === 'undefined') return false;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
+
   const handleShare = async (platform: 'whatsapp' | 'instagram' | 'facebook' | 'twitter' | 'copy') => {
     setSharing(platform);
     const url = getShareUrl();
+    const mobile = isMobile();
 
     try {
-      // Check if native share with files is supported (mobile)
-      if (imageBlob) {
-        const file = new File([imageBlob], `${athleteName.replace(/\s+/g, '_')}_swiss_taekwondo.png`, { type: 'image/png' });
-        const canShareFiles = navigator.canShare?.({ files: [file] });
-
-        if (canShareFiles && navigator.share) {
-          // Mobile: Use native share with image
-          try {
-            await navigator.share({
-              files: [file],
-              url: url,
-            });
-            setSharing(null);
-            return;
-          } catch (err) {
-            // User cancelled or error, fall through to desktop behavior
-          }
-        }
-      }
-
-      // Desktop: Download image first
+      // Download image first
       if (imageBlob) {
         downloadImage();
       }
@@ -119,22 +106,44 @@ export default function ShareButtonsPanel({
       // Small delay to ensure download starts
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Open share platform in new window
+      // Determine share URL based on platform and device
       let shareUrl = '';
 
       switch (platform) {
         case 'whatsapp':
-          shareUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(url)}`;
+          if (mobile) {
+            // Mobile: Use whatsapp:// deep link to open app
+            shareUrl = `whatsapp://send?text=${encodeURIComponent(url)}`;
+          } else {
+            // Desktop: Use WhatsApp Web
+            shareUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(url)}`;
+          }
           break;
         case 'instagram':
-          // Instagram doesn't have web share, just download image
-          // Show a message or just let the download happen
+          // Instagram doesn't support direct sharing via URL
+          // Just download the image - user will share manually
+          if (mobile) {
+            // Try to open Instagram app
+            shareUrl = `instagram://`;
+          }
           break;
         case 'facebook':
-          shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+          if (mobile) {
+            // Mobile: Use fb:// deep link
+            shareUrl = `fb://facewebmodal/f?href=${encodeURIComponent(url)}`;
+          } else {
+            // Desktop: Use Facebook web sharer
+            shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+          }
           break;
         case 'twitter':
-          shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}`;
+          if (mobile) {
+            // Mobile: Use twitter:// deep link
+            shareUrl = `twitter://post?url=${encodeURIComponent(url)}`;
+          } else {
+            // Desktop: Use Twitter web intent
+            shareUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}`;
+          }
           break;
         case 'copy':
           await navigator.clipboard.writeText(url);
@@ -144,10 +153,14 @@ export default function ShareButtonsPanel({
       }
 
       if (shareUrl) {
-        const newWindow = window.open(shareUrl, '_blank', 'noopener,noreferrer');
-        if (!newWindow) {
-          // Popup blocked, try direct navigation
+        // For mobile deep links, use window.location to open the app
+        if (mobile) {
           window.location.href = shareUrl;
+        } else {
+          const newWindow = window.open(shareUrl, '_blank', 'noopener,noreferrer');
+          if (!newWindow) {
+            window.location.href = shareUrl;
+          }
         }
       }
     } catch (err) {
