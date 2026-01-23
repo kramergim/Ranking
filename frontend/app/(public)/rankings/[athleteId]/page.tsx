@@ -3,6 +3,9 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Calendar, Weight, User, Award, Trophy, Target, Hash } from 'lucide-react';
 
+// Revalidate every 60 seconds (ISR)
+export const revalidate = 60;
+
 interface PageProps {
   params: { athleteId: string };
   searchParams: { snapshot?: string };
