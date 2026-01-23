@@ -139,23 +139,37 @@ export default function ShareButtonsPanel({
     const mobile = isMobile();
 
     try {
-      // On mobile Instagram: download image then open Instagram app
-      if (mobile && platform === 'instagram' && imageBlob) {
-        // First try native share with file (works on some devices)
+      // On mobile Instagram: use native share API
+      if (mobile && platform === 'instagram') {
+        if (!imageBlob) {
+          alert('Image not ready. Please wait and try again.');
+          setSharing(null);
+          return;
+        }
+
         const file = new File(
           [imageBlob],
           `${athleteName.replace(/\s+/g, '_')}_swiss_taekwondo.png`,
           { type: 'image/png' }
         );
 
-        // Check if file sharing is supported
-        const canShareFiles = navigator.canShare && navigator.canShare({ files: [file] });
-
-        if (canShareFiles && navigator.share) {
+        // Use native share - this should open the share sheet on iOS/Android
+        if (navigator.share) {
           try {
-            await navigator.share({
-              files: [file],
-            });
+            // Try with files first
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({ files: [file] });
+            } else {
+              // Fallback: share without files, just open share sheet
+              await navigator.share({
+                title: `${athleteName} - Swiss Taekwondo`,
+                text: `Check out ${athleteName}'s ranking!`,
+                url: url,
+              });
+              // Also save the image
+              const blobUrl = URL.createObjectURL(imageBlob);
+              window.open(blobUrl, '_blank');
+            }
             setSharing(null);
             return;
           } catch (err) {
@@ -163,14 +177,14 @@ export default function ShareButtonsPanel({
               setSharing(null);
               return;
             }
-            // Fall through to download + open approach
+            console.error('Share failed:', err);
           }
         }
 
-        // Fallback: Download image then open Instagram
-        downloadImage();
-        await new Promise(resolve => setTimeout(resolve, 500));
-        window.location.href = 'instagram://app';
+        // Final fallback: open image in new tab for manual save
+        const blobUrl = URL.createObjectURL(imageBlob);
+        window.open(blobUrl, '_blank');
+        alert('Long press on the image to save it, then open Instagram to share.');
         setSharing(null);
         return;
       }
